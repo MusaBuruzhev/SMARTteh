@@ -1,0 +1,850 @@
+- backend
+  - .env
+  - middleware
+    - auth.js
+  - models
+    - User.js
+  - package-lock.json
+  - package.json
+  - routes
+    - auth.js
+  - server.js
+- frontend
+  - .gitignore
+  - index.html
+  - jsconfig.json
+  - package-lock.json
+  - package.json
+  - public
+    - favicon.ico
+  - README.md
+  - src
+    - App.vue:
+      <template>
+        <router-view />
+      </template>
+
+      <script>
+      export default {
+        name: 'App'
+      }
+      </script>
+
+      <style scoped>
+          
+      </style>
+
+    - assets
+      - main.css:
+            body{
+          margin: 0;
+      }
+
+    - components
+      - Header.vue
+      <!-- src/components/Header.vue -->
+      <template>
+        <header class="header">
+          <nav>
+            <router-link to="/">Главная</router-link>
+            
+            <!-- Если есть токен - показываем ссылку на профиль -->
+            <router-link 
+              v-if="hasToken" 
+              to="/profile" 
+              class="profile-link"
+            >
+              Профиль
+            </router-link>
+            
+            <!-- Если нет токена - показываем кнопку входа с анимацией -->
+            <button 
+              v-else
+              class="auth-btn btn-blue"
+              @click="toggleDropdown"
+            >
+              <span class="btn-text" :class="{'hidden': showDropdown}">
+                Войти
+              </span>
+              <span class="btn-arrow" :class="{'visible': showDropdown}">
+                >
+              </span>
+            </button>
+          </nav>
+          
+          <!-- Выдвигающееся окно авторизации/регистрации -->
+          <div 
+            v-if="showDropdown" 
+            class="dropdown-overlay" 
+            @click="closeDropdown"
+          >
+            <div 
+              class="auth-container" 
+              :class="{'closing': isClosing}"
+              @click.stop
+            >
+              <!-- Переключатель между Входом и Регистрацией -->
+              <div class="auth-tabs">
+                <button 
+                  class="tab-btn" 
+                  :class="{'active': activeTab === 'login'}"
+                  @click="activeTab = 'login'"
+                >
+                  Вход
+                </button>
+                <button 
+                  class="tab-btn" 
+                  :class="{'active': activeTab === 'register'}"
+                  @click="activeTab = 'register'"
+                >
+                  Регистрация
+                </button>
+              </div>
+
+              <!-- Форма Входа -->
+              <form v-if="activeTab === 'login'" @submit.prevent="handleLogin" class="auth-form">
+                <h3>Вход в аккаунт</h3>
+                
+                <div class="input-group">
+                  <input 
+                    v-model="loginForm.email"
+                    type="email" 
+                    placeholder=" "
+                    required
+                  />
+                  <label>Email</label>
+                </div>
+
+                <div class="input-group">
+                  <input 
+                    v-model="loginForm.password"
+                    type="password" 
+                    placeholder=" "
+                    required
+                  />
+                  <label>Пароль</label>
+                </div>
+
+                <button type="submit" class="submit-btn" :disabled="loading">
+                  {{ loading ? 'Вход...' : 'Войти' }}
+                </button>
+
+                <div v-if="error" class="error-message">
+                  {{ error }}
+                </div>
+              </form>
+
+              <!-- Форма Регистрации -->
+              <form v-if="activeTab === 'register'" @submit.prevent="handleRegister" class="auth-form">
+                <h3>Создать аккаунт</h3>
+                
+                <div class="input-group">
+                  <input 
+                    v-model="registerForm.username"
+                    type="text" 
+                    placeholder=" "
+                    required
+                    minlength="3"
+                    maxlength="30"
+                  />
+                  <label>Логин (3-30 символов)</label>
+                </div>
+
+                <div class="input-group">
+                  <input 
+                    v-model="registerForm.email"
+                    type="email" 
+                    placeholder=" "
+                    required
+                  />
+                  <label>Email</label>
+                </div>
+
+                <div class="input-group">
+                  <input 
+                    v-model="registerForm.password"
+                    type="password" 
+                    placeholder=" "
+                    required
+                    minlength="6"
+                  />
+                  <label>Пароль (мин. 6 символов)</label>
+                </div>
+
+                <div class="input-group">
+                  <input 
+                    v-model="registerForm.firstName"
+                    type="text" 
+                    placeholder=" "
+                    required
+                    maxlength="50"
+                  />
+                  <label>Имя</label>
+                </div>
+
+                <div class="input-group">
+                  <input 
+                    v-model="registerForm.lastName"
+                    type="text" 
+                    placeholder=" "
+                    required
+                    maxlength="50"
+                  />
+                  <label>Фамилия</label>
+                </div>
+
+                <button type="submit" class="submit-btn" :disabled="loading">
+                  {{ loading ? 'Регистрация...' : 'Зарегистрироваться' }}
+                </button>
+
+                <div v-if="error" class="error-message">
+                  {{ error }}
+                </div>
+              </form>
+            </div>
+          </div>
+        </header>
+      </template>
+
+      <script>
+      export default {
+        name: 'Header',
+        data() {
+          return {
+            showDropdown: false,
+            isClosing: false,
+            hasToken: !!localStorage.getItem('token'),
+            activeTab: 'login',
+            loading: false,
+            error: '',
+            loginForm: {
+              email: '',
+              password: ''
+            },
+            registerForm: {
+              username: '',
+              email: '',
+              password: '',
+              firstName: '',
+              lastName: ''
+            }
+          }
+        },
+        methods: {
+          toggleDropdown() {
+            if (this.showDropdown) {
+              this.closeDropdown()
+            } else {
+              this.showDropdown = true
+              this.isClosing = false
+              this.activeTab = 'login'
+              this.error = ''
+            }
+          },
+          
+          closeDropdown() {
+            this.isClosing = true
+            setTimeout(() => {
+              this.showDropdown = false
+              this.isClosing = false
+              this.error = ''
+              // Очищаем формы
+              this.loginForm = { email: '', password: '' }
+              this.registerForm = { username: '', email: '', password: '', firstName: '', lastName: '' }
+            }, 300)
+          },
+
+          async handleLogin() {
+            this.loading = true
+            this.error = ''
+
+            try {
+              const response = await fetch('http://localhost:5000/api/auth/login', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(this.loginForm)
+              })
+
+              const data = await response.json()
+
+              if (response.ok) {
+                localStorage.setItem('token', data.token)
+                this.hasToken = true
+                this.closeDropdown()
+                // Можно добавить уведомление об успешном входе
+                alert('Вход выполнен успешно!')
+              } else {
+                this.error = data.message || 'Ошибка входа'
+              }
+            } catch (error) {
+              this.error = 'Ошибка соединения с сервером'
+            }
+
+            this.loading = false
+          },
+
+          async handleRegister() {
+            this.loading = true
+            this.error = ''
+
+            try {
+              const response = await fetch('http://localhost:5000/api/auth/register', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(this.registerForm)
+              })
+
+              const data = await response.json()
+
+              if (response.ok) {
+                localStorage.setItem('token', data.token)
+                this.hasToken = true
+                this.closeDropdown()
+                alert('Регистрация прошла успешно!')
+              } else {
+                this.error = data.message || 'Ошибка регистрации'
+              }
+            } catch (error) {
+              this.error = 'Ошибка соединения с сервером'
+            }
+
+            this.loading = false
+          }
+        }
+      }
+      </script>
+
+      <style scoped>
+      .header {
+        background: #2c3e50;
+        color: white;
+        padding: 1rem;
+        position: relative;
+      }
+
+      nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      a {
+        color: white;
+        text-decoration: none;
+      }
+
+      .auth-btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        color: white;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        min-width: 80px;
+        height: 40px;
+      }
+
+      .btn-blue {
+        background: linear-gradient(45deg, #007bff, #0056b3);
+      }
+
+      .btn-red {
+        background: linear-gradient(45deg, #dc3545, #c82333);
+      }
+
+      .btn-text, .btn-arrow {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        transition: all 0.3s ease;
+      }
+
+      .btn-text {
+        opacity: 1;
+      }
+
+      .btn-text.hidden {
+        opacity: 0;
+        transform: translate(-50%, -50%) translateX(-20px);
+      }
+
+      .btn-arrow {
+        opacity: 0;
+        transform: translate(-50%, -50%) translateX(20px);
+        font-size: 1.2rem;
+        font-weight: bold;
+      }
+
+      .btn-arrow.visible {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+      }
+
+      .dropdown-overlay {
+        position: fixed;
+        top: 72px;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+      }
+
+      .auth-container {
+        width: 90%;
+        max-width: 575px;
+        background: white;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease-out;
+      }
+
+      .auth-container.closing {
+        animation: slideOut 0.3s ease-in;
+      }
+
+      @keyframes slideIn {
+        from { 
+          opacity: 0;
+          transform: translate(-50%, -60%);
+        }
+        to { 
+          opacity: 1;
+          transform: translate(-50%, -50%);
+        }
+      }
+
+      @keyframes slideOut {
+        from { 
+          opacity: 1;
+          transform: translate(-50%, -50%);
+        }
+        to { 
+          opacity: 0;
+          transform: translate(-50%, -60%);
+        }
+      }
+
+      .auth-tabs {
+        display: flex;
+        margin-bottom: 2rem;
+        border-bottom: 2px solid #f0f0f0;
+      }
+
+      .tab-btn {
+        flex: 1;
+        padding: 1rem;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: all 0.3s;
+        border-bottom: 3px solid transparent;
+      }
+
+      .tab-btn.active {
+        color: #007bff;
+        border-bottom-color: #007bff;
+        font-weight: bold;
+      }
+
+      .auth-form h3 {
+        text-align: center;
+        margin-bottom: 2rem;
+        color: #2c3e50;
+      }
+
+      .input-group {
+        position: relative;
+        margin-bottom: 1.5rem;
+      }
+
+      .input-group input {
+        width: 94%;
+        padding: 1rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: all 0.3s;
+        background: transparent;
+      }
+
+      .input-group input:focus {
+        outline: none;
+        border-color: #007bff;
+      }
+
+      .input-group label {
+        position: absolute;
+        left: 1rem;
+        top: 1rem;
+        color: #999;
+        transition: all 0.3s;
+        pointer-events: none;
+      }
+
+      .input-group input:focus + label,
+      .input-group input:not(:placeholder-shown) + label {
+        top: -0.5rem;
+        left: 0.8rem;
+        font-size: 0.8rem;
+        color: #007bff;
+        background: white;
+        padding: 0 0.5rem;
+      }
+
+      .submit-btn {
+        width: 100%;
+        padding: 1rem;
+        background: linear-gradient(45deg, #007bff, #0056b3);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .submit-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,123,255,0.3);
+      }
+
+      .submit-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .error-message {
+        margin-top: 1rem;
+        padding: 0.5rem;
+        background: #f8d7da;
+        color: #721c24;
+        border-radius: 4px;
+        text-align: center;
+      }
+      </style>
+
+    - main.js:
+      import { createApp } from 'vue'
+      import App from './App.vue'
+      import router from './router'
+      import './assets/main.css'
+
+      createApp(App).use(router).mount('#app')
+    - pages
+      - HomePage.vue
+        <!-- src/pages/HomePage.vue -->
+        <template>
+          <div class="home">
+            <Header/>
+            <main>
+              <h2>Главная страница</h2>
+              <p>Содержимое главной страницы</p>
+            </main>
+          </div>
+        </template>
+
+        <script>
+        import Header from '@/components/Header.vue'
+
+        export default {
+          name: 'HomePage',
+          components: {
+            Header
+          }
+        }
+        </script>
+
+        <style>
+        main {
+          padding: 2rem;
+        }
+        </style>
+
+      - ProfilePage.vue:
+        <!-- src/pages/ProfilePage.vue -->
+        <template>
+          <div class="profile-page">
+            <Header />
+            <div class="container">
+              <div class="profile-card">
+                <h2>Мой профиль</h2>
+                
+                <div v-if="loading" class="loading">Загрузка...</div>
+                
+                <div v-else-if="user" class="profile-info">
+                  <div class="avatar-section">
+                    <div class="avatar">
+                      {{ getInitials }}
+                    </div>
+                    <h3>{{ user.firstName }} {{ user.lastName }}</h3>
+                    <p>@{{ user.username }}</p>
+                  </div>
+                  
+                  <div class="details-section">
+                    <div class="detail-item">
+                      <label>Email:</label>
+                      <span>{{ user.email }}</span>
+                    </div>
+                    
+                    <div class="detail-item">
+                      <label>Имя:</label>
+                      <span>{{ user.firstName }}</span>
+                    </div>
+                    
+                    <div class="detail-item">
+                      <label>Фамилия:</label>
+                      <span>{{ user.lastName }}</span>
+                    </div>
+                    
+                    <div v-if="user.phoneNumber" class="detail-item">
+                      <label>Телефон:</label>
+                      <span>{{ user.phoneNumber }}</span>
+                    </div>
+                    
+                    <div v-if="user.passportNumber" class="detail-item">
+                      <label>Паспорт:</label>
+                      <span>{{ user.passportNumber }}</span>
+                    </div>
+                    
+                    <div v-if="user.bankCardNumber" class="detail-item">
+                      <label>Банковская карта:</label>
+                      <span>{{ user.bankCardNumber }}</span>
+                    </div>
+                  </div>
+                  
+                  <div class="actions">
+                    <button @click="logout" class="logout-btn">Выйти</button>
+                  </div>
+                </div>
+                
+                <div v-else class="error">
+                  <p>Ошибка загрузки профиля</p>
+                  <button @click="fetchProfile">Попробовать снова</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <script>
+        import Header from '@/components/Header.vue'
+
+        export default {
+          name: 'ProfilePage',
+          components: {
+            Header
+          },
+          data() {
+            return {
+              user: null,
+              loading: true,
+              error: null
+            }
+          },
+          computed: {
+            getInitials() {
+              if (!this.user) return ''
+              return (this.user.firstName[0] + this.user.lastName[0]).toUpperCase()
+            }
+          },
+          async mounted() {
+            await this.fetchProfile()
+          },
+          methods: {
+            async fetchProfile() {
+              this.loading = true
+              this.error = null
+              
+              const token = localStorage.getItem('token')
+              
+              if (!token) {
+                this.$router.push('/')
+                return
+              }
+              
+              try {
+                const response = await fetch('http://localhost:5000/api/auth/me', {
+                  headers: {
+                    'Authorization': `Bearer ${token}`
+                  }
+                })
+                
+                if (response.ok) {
+                  const data = await response.json()
+                  this.user = data.user
+                } else if (response.status === 401) {
+                  localStorage.removeItem('token')
+                  this.$router.push('/')
+                } else {
+                  this.error = 'Ошибка загрузки профиля'
+                }
+              } catch (error) {
+                this.error = 'Ошибка соединения'
+              }
+              
+              this.loading = false
+            },
+            
+            logout() {
+              localStorage.removeItem('token')
+              this.$router.push('/')
+            }
+          }
+        }
+        </script>
+
+        <style scoped>
+        .profile-page {
+          min-height: 100vh;
+          background: #f5f5f5;
+        }
+
+        .container {
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 2rem;
+        }
+
+        .profile-card {
+          background: white;
+          border-radius: 15px;
+          padding: 2rem;
+          box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .loading {
+          text-align: center;
+          padding: 2rem;
+          font-size: 1.2rem;
+        }
+
+        .avatar-section {
+          text-align: center;
+          margin-bottom: 2rem;
+          padding-bottom: 2rem;
+          border-bottom: 2px solid #f0f0f0;
+        }
+
+        .avatar {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: linear-gradient(45deg, #007bff, #0056b3);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 2rem;
+          font-weight: bold;
+          margin: 0 auto 1rem;
+        }
+
+        .details-section {
+          margin-bottom: 2rem;
+        }
+
+        .detail-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1rem;
+          border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-item label {
+          font-weight: bold;
+          color: #666;
+        }
+
+        .detail-item span {
+          color: #333;
+        }
+
+        .actions {
+          text-align: center;
+        }
+
+        .logout-btn {
+          padding: 0.75rem 2rem;
+          background: #dc3545;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+          background: #c82333;
+          transform: translateY(-2px);
+        }
+
+        .error {
+          text-align: center;
+          color: #dc3545;
+        }
+        </style>
+    - router
+      - index.js:
+
+      // src/router/index.js
+      import { createRouter, createWebHistory } from 'vue-router'
+      import HomePage from '@/pages/HomePage.vue'
+      import ProfilePage from '@/pages/ProfilePage.vue'
+
+      const routes = [
+        {
+          path: '/',
+          name: 'Home',
+          component: HomePage
+        },
+        {
+          path: '/profile',
+          name: 'Profile',
+          component: ProfilePage
+        }
+      ]
+
+      const router = createRouter({
+        history: createWebHistory(),
+        routes
+      })
+
+      export default router
+
+  - vite.config.js:
+      import { fileURLToPath, URL } from 'node:url'
+
+      import { defineConfig } from 'vite'
+      import vue from '@vitejs/plugin-vue'
+      import vueDevTools from 'vite-plugin-vue-devtools'
+
+      // https://vite.dev/config/
+      export default defineConfig({
+        plugins: [
+          vue(),
+          vueDevTools(),
+        ],
+        resolve: {
+          alias: {
+            '@': fileURLToPath(new URL('./src', import.meta.url))
+          },
+        },
+      })
+
+
+- package-lock.json
