@@ -136,7 +136,7 @@
         
         <div v-if="activeTab === 'cart'">
           <div class="empty-state">
-            <p>Корзина пока пуста</p>
+            <Cart/>
           </div>
         </div>
         
@@ -378,12 +378,14 @@
 <script>
 import Header from '@/components/Header.vue'
 import AddressDelivery from '@/components/AddressDelivery.vue'
+import Cart from '@/components/Cart.vue'
 
 export default {
   name: 'ProfilePage',
   components: {
     Header,
-    AddressDelivery
+    AddressDelivery,
+    Cart
   },
   data() {
     return {
@@ -506,6 +508,7 @@ export default {
         this.fetchUsers()
       }
     },
+    
     async fetchUser() {
       this.loading = true
       this.error = ''
@@ -921,6 +924,9 @@ formatPhoneInput(event) {
   },
   mounted() {
     this.fetchUser()
+    if (this.$route.query.tab) {
+      this.activeTab = this.$route.query.tab; 
+    }
   }
 }
 </script>

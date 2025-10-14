@@ -137,7 +137,7 @@ export default {
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 90%;
   margin: 0 auto;
   padding: 20px;
 }
@@ -153,7 +153,7 @@ h1 {
 }
 
 .filters {
-  width: 300px;
+  width: 20%;
   background: #2d2d2d;
   padding: 20px;
   border-radius: 12px;
