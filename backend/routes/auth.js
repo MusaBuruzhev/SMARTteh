@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const mongoose = require('mongoose')
 const User = require('../models/User')
 const auth = require('../middleware/auth')
 const axios = require('axios')
@@ -40,7 +41,7 @@ router.post('/register', async (req, res) => {
 
     await user.save()
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' })
+    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' })
 
     res.status(201).json({
       message: 'Пользователь успешно зарегистрирован',
@@ -54,11 +55,12 @@ router.post('/register', async (req, res) => {
         phoneNumber: user.phoneNumber,
         passportNumber: user.passportNumber,
         bankCardNumber: user.bankCardNumber,
-        deliveryAddress: user.deliveryAddress
+        deliveryAddress: user.deliveryAddress,
+        role: user.role
       }
     })
   } catch (error) {
-    res.status(500).json({ message: 'Ошибка сервера' })
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message })
   }
 })
 
@@ -75,7 +77,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Неверный email или пароль' })
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' })
+    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' })
 
     res.json({
       message: 'Авторизация успешна',
@@ -89,11 +91,12 @@ router.post('/login', async (req, res) => {
         phoneNumber: user.phoneNumber,
         passportNumber: user.passportNumber,
         bankCardNumber: user.bankCardNumber,
-        deliveryAddress: user.deliveryAddress
+        deliveryAddress: user.deliveryAddress,
+        role: user.role
       }
     })
   } catch (error) {
-    res.status(500).json({ message: 'Ошибка сервера' })
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message })
   }
 })
 
@@ -105,7 +108,7 @@ router.get('/me', auth, async (req, res) => {
     }
     res.json({ user })
   } catch (error) {
-    res.status(500).json({ message: 'Ошибка сервера' })
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message })
   }
 })
 
@@ -158,7 +161,64 @@ router.put('/update', auth, async (req, res) => {
       user
     })
   } catch (error) {
-    res.status(500).json({ message: 'Ошибка сервера' })
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message })
+  }
+})
+
+router.get('/users', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Доступ запрещен: только для администраторов' })
+    }
+    const users = await User.find().select('-password')
+    res.json({ users })
+  } catch (error) {
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message })
+  }
+})
+
+router.put('/users/:id/role', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Доступ запрещен: только для администраторов' })
+    }
+    const { role } = req.body
+    if (!['admin', 'user'].includes(role)) {
+      return res.status(400).json({ message: 'Неверная роль' })
+    }
+    const userId = req.params.id
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: 'Некорректный ID пользователя' })
+    }
+    const userToUpdate = await User.findById(userId)
+    if (!userToUpdate) {
+      return res.status(404).json({ message: 'Пользователь не найден' })
+    }
+    userToUpdate.role = role
+    await userToUpdate.save()
+    res.json({ message: 'Роль обновлена', user: userToUpdate })
+  } catch (error) {
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message })
+  }
+})
+
+router.delete('/users/:id', auth, async (req, res) => {
+  try {
+    const userId = req.params.id
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: 'Некорректный ID пользователя' })
+    }
+    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+      return res.status(403).json({ message: 'Доступ запрещен: вы можете удалить только свой аккаунт' })
+    }
+    const userToDelete = await User.findById(userId)
+    if (!userToDelete) {
+      return res.status(404).json({ message: 'Пользователь не найден' })
+    }
+    await User.deleteOne({ _id: userId })
+    res.json({ message: 'Аккаунт успешно удален' })
+  } catch (error) {
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message })
   }
 })
 

@@ -30,19 +30,24 @@ const userSchema = new mongoose.Schema({
   },
   phoneNumber: {
     type: String,
-    maxlength: 16  // +7(123)456-78-90
+    maxlength: 16
   },
   passportNumber: {
     type: String,
-    maxlength: 12  // 12 34 567890
+    maxlength: 12
   },
   bankCardNumber: {
     type: String,
-    maxlength: 19  // 1234 5678 9012 3456
+    maxlength: 19
   },
   deliveryAddress: {
     type: String,
     default: ''
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
   }
 }, {
   timestamps: true

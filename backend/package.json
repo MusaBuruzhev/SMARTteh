@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Backend server with authentication",
+  "description": "Backend server with authentication and product management",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +12,8 @@
     "nodejs",
     "express",
     "mongodb",
-    "authentication"
+    "authentication",
+    "products"
   ],
   "author": "",
   "license": "ISC",
@@ -23,7 +24,9 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^7.5.0"
+    "mongoose": "^7.5.0",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

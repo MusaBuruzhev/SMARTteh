@@ -1,7 +1,8 @@
-// src/router/index.js
+
 import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/pages/HomePage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
+import CatalogPage from '@/pages/CatalogPage.vue'
 
 const routes = [
   {
@@ -13,6 +14,11 @@ const routes = [
     path: '/profile',
     name: 'Profile',
     component: ProfilePage
+  },
+  {
+    path: '/catalog',  
+    name: 'Catalog',
+    component: CatalogPage
   }
 ]
 
