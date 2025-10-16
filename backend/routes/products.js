@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
 const authMiddleware = require('../middleware/auth');
+const Cart = require('../models/Cart');
 const multer = require('multer');
 const path = require('path');
 
@@ -13,7 +14,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Список всех товаров
 router.get('/list', authMiddleware, async (req, res) => {
   try {
     const products = await Product.find();
@@ -24,7 +24,6 @@ router.get('/list', authMiddleware, async (req, res) => {
   }
 });
 
-// Добавление товара
 router.post('/add', authMiddleware, upload.array('images', 10), async (req, res) => {
   try {
     console.log('Received data:', req.body);
@@ -77,7 +76,6 @@ router.post('/add', authMiddleware, upload.array('images', 10), async (req, res)
   }
 });
 
-// Получение товара по ID
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -91,7 +89,6 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Обновление товара
 router.put('/update/:id', authMiddleware, upload.array('images', 10), async (req, res) => {
   try {
     const { name, description, price, stock, category, characteristics, mode = 'add' } = req.body;
@@ -139,7 +136,6 @@ router.put('/update/:id', authMiddleware, upload.array('images', 10), async (req
   }
 });
 
-// Удаление изображения
 router.delete('/:id/image/:index', authMiddleware, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -160,13 +156,17 @@ router.delete('/:id/image/:index', authMiddleware, async (req, res) => {
   }
 });
 
-// Удаление товара
 router.delete('/delete/:id', authMiddleware, async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) {
       return res.status(404).json({ message: 'Товар не найден' });
     }
+    // Удаляем продукт из всех корзин
+    await Cart.updateMany(
+      { 'items.product': req.params.id },
+      { $pull: { items: { product: req.params.id } } }
+    );
     res.status(200).json({ message: 'Товар успешно удалён' });
   } catch (error) {
     console.error('Error in /delete/:id:', error);

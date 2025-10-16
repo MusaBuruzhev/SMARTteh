@@ -21,7 +21,6 @@
         Нет в наличии
       </button>
       <button class="buy-now-btn">Купить</button>
-
     </div>
   </div>
 </template>
@@ -55,7 +54,8 @@ export default {
         });
         if (response.ok) {
           const { cart } = await response.json();
-          this.inCart = cart.some(item => item.product._id === this.product._id);
+          console.log('Check inCart response:', cart); // Логирование для отладки
+          this.inCart = cart.some(item => item && item.product && item.product._id === this.product._id);
         }
       } catch (error) {
         console.error('Ошибка проверки корзины:', error);
@@ -76,20 +76,21 @@ export default {
           },
           body: JSON.stringify({ productId: this.product._id })
         });
+        const data = await response.json();
+        console.log('Add to cart response:', data); // Логирование для отладки
         if (response.ok) {
           this.inCart = true;
         } else {
-          const data = await response.json();
           alert(data.message || 'Ошибка добавления в корзину');
         }
       } catch (error) {
+        console.error('Ошибка соединения:', error);
         alert('Ошибка соединения');
       }
     }
   }
 }
 </script>
-
 
 <style scoped>
 .product-card {

@@ -8,25 +8,27 @@
     </div>
     <div v-else class="cart-content">
       <div class="cart-items">
-        <div v-for="item in cartItems" :key="item.product._id" class="cart-item">
-          <img 
-            v-if="item.product.images && item.product.images.length" 
-            :src="'http://localhost:5000' + item.product.images[0]" 
-            alt="Изображение товара" 
-            class="item-image"
-          >
-          <div class="item-details">
-            <h3>{{ item.product.name }}</h3>
-            <p>Цена: {{ item.product.price }} руб.</p>
-             <div class="quantity-control">
+        <template v-for="(item, index) in cartItems" :key="item?.product?._id || index">
+          <div v-if="item && item.product" class="cart-item">
+            <img 
+              v-if="item.product.images && item.product.images.length" 
+              :src="'http://localhost:5000' + item.product.images[0]" 
+              alt="Изображение товара" 
+              class="item-image"
+            >
+            <div class="item-details">
+              <h3>{{ item.product.name }}</h3>
+              <p>Цена: {{ item.product.price }} руб.</p>
+              <div class="quantity-control">
                 <button @click="updateQuantity(item.product._id, item.quantity - 1)" :disabled="item.quantity <= 1">-</button>
                 <span>{{ item.quantity }}</span>
                 <button @click="updateQuantity(item.product._id, item.quantity + 1)" :disabled="item.quantity >= item.product.stock">+</button>
+              </div>
+              <p>Итого: {{ item.product.price * item.quantity }} руб.</p>
             </div>
-            <p>Итого: {{ item.product.price * item.quantity }} руб.</p>
+            <button class="remove-btn" @click="removeFromCart(item.product._id)">Удалить</button>
           </div>
-          <button class="remove-btn" @click="removeFromCart(item.product._id)">Удалить</button>
-        </div>
+        </template>
       </div>
       <div class="cart-summary">
         <h3>Итог</h3>
@@ -49,10 +51,10 @@ export default {
   },
   computed: {
     totalItems() {
-      return this.cartItems.reduce((sum, item) => sum + item.quantity, 0);
+      return this.cartItems.reduce((sum, item) => sum + (item && item.product ? item.quantity : 0), 0);
     },
     totalPrice() {
-      return this.cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+      return this.cartItems.reduce((sum, item) => sum + (item && item.product ? item.product.price * item.quantity : 0), 0);
     }
   },
   mounted() {
@@ -73,9 +75,12 @@ export default {
         });
         if (!response.ok) throw new Error('Ошибка загрузки');
         const { cart } = await response.json();
-        this.cartItems = cart;
+        console.log('Fetched cart items:', cart); // Логирование для отладки
+        this.cartItems = Array.isArray(cart) ? cart.filter(item => item && item.product) : [];
+        console.log('Filtered cartItems:', this.cartItems); // Логирование после фильтрации
       } catch (err) {
         this.error = err.message;
+        console.error('Fetch cart error:', err);
       } finally {
         this.loading = false;
       }
@@ -85,7 +90,9 @@ export default {
         const token = localStorage.getItem('token');
         const response = await fetch(`http://localhost:5000/api/cart/remove/${productId}`, {
           method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         });
         if (response.ok) {
           this.fetchCart();
@@ -98,37 +105,31 @@ export default {
       }
     },
     async updateQuantity(productId, newQuantity) {
-        const item = this.cartItems.find(i => i.product._id === productId);
-        if (!item || newQuantity < 1 || newQuantity > item.product.stock) {
-            alert('Недопустимое количество: превышает наличие');
-            return;
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`http://localhost:5000/api/cart/update/${productId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ quantity: newQuantity })
+        });
+        if (response.ok) {
+          this.fetchCart();
+        } else {
+          const data = await response.json();
+          alert(data.message || 'Ошибка обновления');
         }
-        try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:5000/api/cart/update/${productId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ quantity: newQuantity })
-            });
-            if (response.ok) {
-            this.fetchCart();
-            } else {
-            const data = await response.json();
-            alert(data.message || 'Ошибка обновления');
-            }
-        } catch (error) {
-            alert('Ошибка соединения');
-        }
-        }
+      } catch (error) {
+        alert('Ошибка соединения');
+      }
+    }
   }
 }
 </script>
 
 <style scoped>
-
 .quantity-control {
   display: flex;
   align-items: center;
@@ -277,4 +278,3 @@ export default {
   background: #e55f00;
 }
 </style>
-
