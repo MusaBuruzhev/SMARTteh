@@ -12,7 +12,7 @@
 
 <br>
 
-(https://i.imgur.com/your-photo.jpg)  
+(https://cdn.qwenlm.ai/output/481945ce-a4f4-46e8-a396-4c87a62e39c3/t2i/0fd363ea-8c96-4be5-a84a-804fbfb5ca56/1761655314.png?key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZXNvdXJjZV91c2VyX2lkIjoiNDgxOTQ1Y2UtYTRmNC00NmU4LWEzOTYtNGM4N2E2MmUzOWMzIiwicmVzb3VyY2VfaWQiOiIxNzYxNjU1MzE0IiwicmVzb3VyY2VfY2hhdF9pZCI6IjRkYzlhZDFlLWYxZjQtNDQwOS05YzE5LTJmYWY0ZGU3ZWI4ZCJ9.3yDx2IklJbVKsRQ1QHIHk0YCfayBG4dPsMEsPL1Re14)  
 
 
 </div>
