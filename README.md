@@ -11,7 +11,7 @@
 *Разработано в свободное время для тестирования новых технологий*
 
 <br>
-![SMARTtech Preview](frontend/public/Fon.png)
++ ![SMARTtech Preview](fon.png)
 
 </div>
 
