@@ -58,14 +58,13 @@
 
 ## 🚀 Запуск проекта
 
-```bash
 # Клонирование репозитория
 
 ```bash
 git clone https://github.com/your-username/smarttech.git
 ```
 ```bash
-cd smarttech
+cd SMARTteh
 ```
 
 # Бэкенд
