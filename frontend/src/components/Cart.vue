@@ -34,7 +34,8 @@
         <h3>Итог</h3>
         <p>Товаров: {{ totalItems }}</p>
         <p>Общая сумма: {{ totalPrice }} руб.</p>
-        <button class="checkout-btn">Оформить заказ</button>
+
+        <button class="checkout-btn" @click="createOrder">Оформить заказ</button>
       </div>
     </div>
   </div>
@@ -46,7 +47,8 @@ export default {
     return {
       cartItems: [],
       loading: true,
-      error: ''
+      error: '',
+      userAddress: ''
     }
   },
   computed: {
@@ -59,11 +61,13 @@ export default {
   },
   mounted() {
     this.fetchCart();
+    this.fetchUserAddress();
   },
   methods: {
     async fetchCart() {
       this.loading = true;
       this.error = '';
+      
       try {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -75,9 +79,9 @@ export default {
         });
         if (!response.ok) throw new Error('Ошибка загрузки');
         const { cart } = await response.json();
-        console.log('Fetched cart items:', cart); // Логирование для отладки
+        console.log('Fetched cart items:', cart);
         this.cartItems = Array.isArray(cart) ? cart.filter(item => item && item.product) : [];
-        console.log('Filtered cartItems:', this.cartItems); // Логирование после фильтрации
+        console.log('Filtered cartItems:', this.cartItems);
       } catch (err) {
         this.error = err.message;
         console.error('Fetch cart error:', err);
@@ -85,6 +89,20 @@ export default {
         this.loading = false;
       }
     },
+    async fetchUserAddress() {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://localhost:5000/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      this.userAddress = data.user.deliveryAddress || '';
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки адреса:', error);
+  }
+},
     async removeFromCart(productId) {
       try {
         const token = localStorage.getItem('token');
@@ -124,7 +142,36 @@ export default {
       } catch (error) {
         alert('Ошибка соединения');
       }
+    },
+    async createOrder() {
+  if (!this.userAddress) {
+    alert('Укажите адрес доставки в профиле');
+    this.$router.push('/profile');
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://localhost:5000/api/orders/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ deliveryAddress: this.userAddress })
+    });
+
+    if (response.ok) {
+      alert('Заказ оформлен! Ожидайте подтверждения.');
+      this.fetchCart();
+    } else {
+      const data = await response.json();
+      alert(data.message || 'Ошибка оформления заказа');
     }
+  } catch (error) {
+    alert('Ошибка соединения');
+  }
+}
   }
 }
 </script>

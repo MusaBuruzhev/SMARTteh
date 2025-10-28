@@ -167,7 +167,8 @@ router.put('/update', auth, async (req, res) => {
 
 router.get('/users', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    const userRole = req.user.role?.trim().toLowerCase()
+    if (userRole !== 'admin') {
       return res.status(403).json({ message: 'Доступ запрещен: только для администраторов' })
     }
     const users = await User.find().select('-password')
@@ -179,23 +180,20 @@ router.get('/users', auth, async (req, res) => {
 
 router.put('/users/:id/role', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    const userRole = req.user.role?.trim().toLowerCase()
+    if (userRole !== 'admin') {
       return res.status(403).json({ message: 'Доступ запрещен: только для администраторов' })
     }
     const { role } = req.body
-    if (!['admin', 'user'].includes(role)) {
+    if (!['admin', 'user', 'cashier', 'supply_manager'].includes(role)) {
       return res.status(400).json({ message: 'Неверная роль' })
     }
     const userId = req.params.id
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: 'Некорректный ID пользователя' })
     }
-    const userToUpdate = await User.findById(userId)
-    if (!userToUpdate) {
-      return res.status(404).json({ message: 'Пользователь не найден' })
-    }
-    userToUpdate.role = role
-    await userToUpdate.save()
+    const userToUpdate = await User.findByIdAndUpdate(userId, { role }, { new: true }).select('-password')
+    if (!userToUpdate) return res.status(404).json({ message: 'Пользователь не найден' })
     res.json({ message: 'Роль обновлена', user: userToUpdate })
   } catch (error) {
     res.status(500).json({ message: 'Ошибка сервера', error: error.message })
@@ -205,15 +203,12 @@ router.put('/users/:id/role', auth, async (req, res) => {
 router.delete('/users/:id', auth, async (req, res) => {
   try {
     const userId = req.params.id
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: 'Некорректный ID пользователя' })
     }
-    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+    const userRole = req.user.role?.trim().toLowerCase()
+    if (userRole !== 'admin' && req.user.userId !== userId) {
       return res.status(403).json({ message: 'Доступ запрещен: вы можете удалить только свой аккаунт' })
-    }
-    const userToDelete = await User.findById(userId)
-    if (!userToDelete) {
-      return res.status(404).json({ message: 'Пользователь не найден' })
     }
     await User.deleteOne({ _id: userId })
     res.json({ message: 'Аккаунт успешно удален' })

@@ -12,10 +12,9 @@ router.get('/list', authMiddleware, async (req, res) => {
       cart = new Cart({ user: req.user.userId, items: [] });
       await cart.save();
     }
-    // Фильтруем элементы, исключая undefined и null
     cart.items = cart.items.filter(item => item && item.product);
     await cart.save();
-    console.log('Cart items sent:', cart.items); // Логирование для отладки
+    console.log('Cart items sent:', cart.items); 
     res.status(200).json({ cart: cart.items });
   } catch (error) {
     console.error('Error in /cart/list:', error);
@@ -52,9 +51,8 @@ router.post('/add', authMiddleware, async (req, res) => {
     }
     await cart.save();
     await cart.populate('items.product');
-    // Фильтруем перед отправкой
     cart.items = cart.items.filter(item => item && item.product);
-    console.log('Cart items after add:', cart.items); // Логирование для отладки
+    console.log('Cart items after add:', cart.items); 
     res.status(200).json({ message: 'Товар добавлен в корзину', cart: cart.items });
   } catch (error) {
     console.error('Error in /cart/add:', error);

@@ -1,4 +1,3 @@
-
 <template>
   <div class="profile-page">
     <Header />
@@ -14,21 +13,35 @@
           <button :class="{ 'active': activeTab === 'history' }" @click="setTab('history')">
             <img src="../../public/history.png" alt="История" width="30px">
           </button>
-          <template v-if="user && user.role === 'admin'">
+
+          <template v-if="['admin', 'cashier'].includes(normalizedRole)">
+            <button :class="{ 'active': activeTab === 'orders-admin' }" @click="setTab('orders-admin')">
+              <img src="../../public/order.png" alt="Заказы" width="30px">
+            </button>
+          </template>
+
+          <template v-if="['admin', 'supply_manager'].includes(normalizedRole)">
             <button :class="{ 'active': activeTab === 'add-product' }" @click="setTab('add-product')">
               <img src="../../public/add.png" alt="Добавить товар" width="30px">
             </button>
             <button :class="{ 'active': activeTab === 'edit-product' }" @click="setTab('edit-product')">
               <img src="../../public/edit.png" alt="Изменить товар" width="30px">
             </button>
+          </template>
+
+          <template v-if="normalizedRole === 'admin'">
             <button :class="{ 'active': activeTab === 'delete-product' }" @click="setTab('delete-product')">
               <img src="../../public/delite.png" alt="Удалить товар" width="30px">
             </button>
+          </template>
+
+          <template v-if="normalizedRole === 'admin'">
             <button :class="{ 'active': activeTab === 'users' }" @click="setTab('users')">
               <img src="../../public/users.png" alt="Пользователи" width="30px">
             </button>
           </template>
         </div>
+
         <div class="header-actions">
           <button @click="logout" class="logout-btn">Выйти</button>
           <button @click="openDeleteModal(user._id)" class="delete-btn">Удалить</button>
@@ -141,12 +154,53 @@
         </div>
         
         <div v-if="activeTab === 'history'">
-          <div class="empty-state">
+          <div v-if="loading" class="loading">Загрузка...</div>
+          <div v-else-if="orders.length" class="orders-grid">
+            <div v-for="order in orders" :key="order._id" class="order-card" :class="order.status">
+              <div class="order-header">
+                <div class="order-info">
+                  <span class="order-number">Заказ #{{ order._id.slice(-6) }}</span>
+                  <span class="order-date">{{ new Date(order.createdAt).toLocaleDateString() }}</span>
+                </div>
+                <div class="order-status" :class="order.status">
+                  <span class="status-icon">
+                    <span v-if="order.status === 'pending'">📦</span>
+                    <span v-else-if="order.status === 'confirmed'">✅</span>
+                    <span v-else-if="order.status === 'delivering'">🚚</span>
+                    <span v-else>🎉</span>
+                  </span>
+                  <span class="status-text">
+                    <span v-if="order.status === 'pending'">Оформлен</span>
+                    <span v-else-if="order.status === 'confirmed'">Подтвержден</span>
+                    <span v-else-if="order.status === 'delivering'">В доставке</span>
+                    <span v-else>Завершен</span>
+                  </span>
+                </div>
+              </div>
+              
+              <div class="order-address">
+                <strong>Адрес:</strong> {{ order.deliveryAddress }}
+              </div>
+              
+              <div class="order-items">
+                <div v-for="item in order.items" :key="item.product._id" class="order-item">
+                  <span class="item-name">{{ item.name }}</span>
+                  <span class="item-quantity">×{{ item.quantity }}</span>
+                  <span class="item-price">{{ item.price * item.quantity }} руб.</span>
+                </div>
+              </div>
+              
+              <div class="order-total">
+                <strong>Итого: {{ order.totalAmount }} руб.</strong>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-state">
             <p>История заказов пуста</p>
           </div>
         </div>
         
-        <div v-if="activeTab === 'add-product' && user && user.role === 'admin'">
+        <div v-if="activeTab === 'add-product' && ['admin', 'supply_manager'].includes(normalizedRole)">
           <form @submit.prevent="addProduct" class="product-form" enctype="multipart/form-data">
             <div class="form-grid">
               <div class="input-group">
@@ -217,111 +271,143 @@
             </button>
             <div v-if="error" class="error-message">{{ error }}</div>
           </form>
-        </div>
+        </div>          
         
-        <div v-if="activeTab === 'edit-product' && user && user.role === 'admin'">
-          <div class="input-group full-width">
-            <select v-model="selectedProductId" @change="fetchProduct">
-              <option value="" disabled>Выберите товар</option>
-              <option v-for="product in products" :key="product._id" :value="product._id">{{ product.name }}</option>
-            </select>
-            <label>Товар</label>
-          </div>
+        <div v-if="activeTab === 'edit-product' && ['admin', 'supply_manager'].includes(normalizedRole)">
+          <div v-if="loading" class="loading">Загрузка...</div>
           
-          <form v-if="selectedProduct" @submit.prevent="updateProduct" class="product-form" enctype="multipart/form-data">
-            <div class="form-grid">
-              <div class="input-group">
-                <input v-model="selectedProduct.name" type="text" placeholder=" " required />
-                <label>Название</label>
+          <div v-else-if="products.length" class="catalog-grid">
+            <div 
+              v-for="product in products" 
+              :key="product._id" 
+              class="product-card"
+              @click="selectProductForEdit(product)"
+            >
+              <div class="product-image">
+                <img v-if="product.images && product.images.length" :src="getFullImageUrl(product.images[0])" :alt="product.name">
+                <div v-else class="no-image">Нет фото</div>
               </div>
-              <div class="input-group">
-                <input v-model.number="selectedProduct.price" type="number" placeholder=" " min="0" step="0.01" required />
-                <label>Цена</label>
-              </div>
-              <div class="input-group">
-                <input v-model.number="selectedProduct.stock" type="number" placeholder=" " min="0" required />
-                <label>Количество</label>
-              </div>
-              <div class="input-group">
-                <select v-model="selectedProduct.category" required @change="updateCharSuggestions">
-                  <option value="" disabled>Выберите категорию</option>
-                  <option value="smartphones">Смартфоны</option>
-                  <option value="laptops">Ноутбуки</option>
-                  <option value="tablets">Планшеты</option>
-                  <option value="accessories">Аксессуары</option>
-                  <option value="gadgets">Гаджеты</option>
-                </select>
-                <label>Категория</label>
-              </div>
-              <div class="input-group full-width">
-                <textarea v-model="selectedProduct.description" placeholder=" " required rows="4"></textarea>
-                <label>Описание</label>
+              <div class="product-info">
+                <h3 class="product-name">{{ product.name }}</h3>
+                <p class="product-description">{{ product.description.substring(0, 100) }}...</p>
+                <div class="product-meta">
+                  <span class="product-price">{{ product.price }} руб.</span>
+                  <span class="product-category">{{ getCategoryName(product.category) }}</span>
+                </div>
+                <div class="product-stock">
+                  В наличии: {{ product.stock }} шт.
+                </div>
               </div>
             </div>
-            
-            <div class="characteristics-section">
-              <h4>Характеристики</h4>
-              <div v-for="(char, index) in selectedProduct.characteristics" :key="index" class="char-grid">
-                <div class="input-group">
-                  <select v-model="char.key" required>
-                    <option value="" disabled>Выберите характеристику</option>
-                    <option v-for="suggestion in charSuggestions[selectedProduct.category]" :key="suggestion" :value="suggestion">{{ suggestion }}</option>
-                  </select>
-                  <label>Название характеристики</label>
-                </div>
-                <div class="input-group">
-                  <input v-model="char.value" placeholder=" " required :list="'editCharValues-' + index" />
-                  <label>Значение</label>
-                  <datalist :id="'editCharValues-' + index">
-                    <option v-for="value in valueSuggestions[selectedProduct.category]?.[char.key] || []" :key="value" :value="value" />
-                  </datalist>
-                </div>
-                <button type="button" class="remove-btn" @click="removeEditCharacteristic(index)">×</button>
+          </div>
+
+          <div v-else class="empty-state">
+            <p>Нет товаров для редактирования</p>
+          </div>
+
+          <!-- Форма редактирования -->
+          <div v-if="selectedProduct" class="edit-form-overlay">
+            <div class="edit-form-container">
+              <div class="edit-form-header">
+                <h3>Редактирование товара</h3>
+                <button @click="cancelEdit" class="close-btn">×</button>
               </div>
-              <button type="button" class="add-char-btn" @click="addEditCharacteristic">+ Добавить характеристику</button>
-            </div>
-            
-            <div class="image-management">
-              <div class="input-group full-width">
-                <label>Текущие изображения</label>
-                <div class="current-images" v-if="selectedProduct.images.length">
-                  <div v-for="(img, index) in selectedProduct.images" :key="index" class="image-container">
-                    <div class="image-wrapper">
-                      <img :src="getFullImageUrl(img)" />
-                      <button type="button" class="remove-image-btn" @click="markForDelete(index)">×</button>
-                      <span v-if="imagesToDelete.includes(index)" class="image-status">Удалено</span>
+              
+              <form @submit.prevent="updateProduct" class="product-form" enctype="multipart/form-data">
+                <div class="form-grid">
+                  <div class="input-group edit-title">
+                    <input v-model="selectedProduct.name" type="text" placeholder=" " required />
+                    <label>Название</label>
+                  </div>
+                  <div class="input-group edit-price">
+                    <input v-model.number="selectedProduct.price" type="number" placeholder=" " min="0" step="0.01" required />
+                    <label>Цена</label>
+                  </div>
+                  <div class="input-group edit-quantity">
+                    <input v-model.number="selectedProduct.stock" type="number" placeholder=" " min="0" required />
+                    <label>Количество</label>
+                  </div>
+                  <div class="input-group">
+                    <select v-model="selectedProduct.category" required @change="updateCharSuggestions">
+                      <option value="" disabled>Выберите категорию</option>
+                      <option value="smartphones">Смартфоны</option>
+                      <option value="laptops">Ноутбуки</option>
+                      <option value="tablets">Планшеты</option>
+                      <option value="accessories">Аксессуары</option>
+                      <option value="gadgets">Гаджеты</option>
+                    </select>
+                    <label>Категория</label>
+                  </div>
+                  <div class="input-group full-width edut-disc">
+                    <textarea v-model="selectedProduct.description" placeholder=" " required rows="4"></textarea>
+                    <label>Описание</label>
+                  </div>
+                </div>
+                
+                <div class="characteristics-section">
+                  <h4>Характеристики</h4>
+                  <div v-for="(char, index) in selectedProduct.characteristics" :key="index" class="char-grid">
+                    <div class="input-group">
+                      <select v-model="char.key" required>
+                        <option value="" disabled>Выберите характеристику</option>
+                        <option v-for="suggestion in charSuggestions[selectedProduct.category]" :key="suggestion" :value="suggestion">{{ suggestion }}</option>
+                      </select>
+                      <label>Название характеристики</label>
+                    </div>
+                    <div class="input-group">
+                      <input v-model="char.value" placeholder=" " required :list="'editCharValues-' + index" />
+                      <label>Значение</label>
+                      <datalist :id="'editCharValues-' + index">
+                        <option v-for="value in valueSuggestions[selectedProduct.category]?.[char.key] || []" :key="value" :value="value" />
+                      </datalist>
+                    </div>
+                    <button type="button" class="remove-btn" @click="removeEditCharacteristic(index)">×</button>
+                  </div>
+                  <button type="button" class="add-char-btn" @click="addEditCharacteristic">+ Добавить характеристику</button>
+                </div>
+                
+                <div class="image-management">
+                  <div class="input-group full-width">
+                    <div class="current-images" v-if="selectedProduct.images.length">
+                      <div v-for="(img, index) in selectedProduct.images" :key="index" class="image-container">
+                        <div class="image-wrapper">
+                          <img :src="getFullImageUrl(img)" />
+                          <button type="button" class="remove-image-btn" @click="markForDelete(index)">×</button>
+                          <span v-if="imagesToDelete.includes(index)" class="image-status">Удалено</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="input-group full-width">
+                    <input type="file" multiple accept="image/*" @change="handleEditFileUpload" ref="editFileInput" />
+                    <label>Новые изображения (3-10)</label>
+                    <div class="image-previews" v-if="newImagePreviews.length">
+                      <div v-for="(img, index) in newImagePreviews" :key="index" class="image-preview">
+                        <img :src="img" />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              <div class="input-group full-width">
-                <input type="file" multiple accept="image/*" @change="handleEditFileUpload" ref="editFileInput" />
-                <label>Новые изображения (3-10)</label>
-                <div class="image-previews" v-if="newImagePreviews.length">
-                  <div v-for="(img, index) in newImagePreviews" :key="index" class="image-preview">
-                    <img :src="img" />
-                  </div>
+                
+                <div class="edit-actions">
+                  <button type="submit" class="save-btn" :disabled="loading">
+                    {{ loading ? 'Сохранение...' : 'Сохранить изменения' }}
+                  </button>
+                  <button type="button" @click="cancelEdit" class="cancel-btn">
+                    Отмена
+                  </button>
                 </div>
-              </div>
+                <div v-if="error" class="error-message">{{ error }}</div>
+              </form>
             </div>
-            
-            <button type="submit" class="save-btn" :disabled="loading">
-              {{ loading ? 'Сохранение...' : 'Сохранить изменения' }}
-            </button>
-            <div v-if="error" class="error-message">{{ error }}</div>
-          </form>
-          
-          <div v-else-if="selectedProductId && !selectedProduct" class="error-state">
-            <p>Ошибка при загрузке товара</p>
-            <button @click="fetchProduct">Попробовать снова</button>
           </div>
         </div>
-        
-        <div v-if="activeTab === 'delete-product' && user && user.role === 'admin'">
+                
+        <div v-if="activeTab === 'delete-product' && normalizedRole === 'admin'">
           <div v-if="loading" class="loading">Загрузка...</div>
           <div v-else-if="products.length" class="products-grid">
-            <div v-for="product in products" :key="product._id" class="product-card">
+            <div v-for="product in products" :key="product._id" class="product-card-del">
               <div class="product-info">
                 <div class="product-image">
                   <img v-if="product.images && product.images.length" :src="getFullImageUrl(product.images[0])" />
@@ -336,7 +422,7 @@
           </div>
         </div>
         
-        <div v-if="activeTab === 'users' && user && user.role === 'admin'">
+        <div v-if="activeTab === 'users' && normalizedRole === 'admin'">
           <div v-if="loading" class="loading">Загрузка...</div>
           
           <div v-else-if="users.length" class="users-grid">
@@ -348,6 +434,8 @@
                 <select v-model="u.role" @change="updateUserRole(u._id, $event.target.value)">
                   <option value="user">Пользователь</option>
                   <option value="admin">Администратор</option>
+                  <option value="cashier">Кассир</option>
+                  <option value="supply_manager">Менеджер по поставкам</option>
                 </select>
                 <button class="delete-btn" @click="openDeleteModal(u._id)">Удалить</button>
               </div>
@@ -359,8 +447,59 @@
             <button @click="fetchUsers">Попробовать снова</button>
           </div>
         </div>
+
+        <!-- АДМИНСКИЕ ЗАКАЗЫ: admin + cashier -->
+        <div v-if="activeTab === 'orders-admin' && ['admin', 'cashier'].includes(normalizedRole)">
+          <div v-if="loading" class="loading">Загрузка...</div>
+          
+          <div v-else-if="allOrders.length" class="admin-orders">
+            <div v-for="order in allOrders" :key="order._id" class="admin-order-card" :class="order.status">
+              <div class="order-header">
+                <div class="order-user">
+                  <strong>{{ order.user.firstName }} {{ order.user.lastName }}</strong>
+                  <span>@{{ order.user.username }}</span>
+                </div>
+                <div class="order-meta">
+                  <span>#{{ order._id.slice(-6) }}</span>
+                  <span>{{ new Date(order.createdAt).toLocaleDateString() }}</span>
+                </div>
+              </div>
+              
+              <div class="order-address">
+                <strong>Адрес:</strong> {{ order.deliveryAddress }}
+              </div>
+              
+              <div class="order-items">
+                <div v-for="item in order.items" :key="item.product._id" class="order-item">
+                  <span class="item-name">{{ item.name }}</span>
+                  <span class="item-quantity">×{{ item.quantity }}</span>
+                  <span class="item-price">{{ item.price * item.quantity }} руб.</span>
+                </div>
+              </div>
+              
+              <div class="order-footer">
+                <div class="order-total">
+                  <strong>Итого: {{ order.totalAmount }} руб.</strong>
+                </div>
+                
+                <div class="order-actions">
+                  <select v-model="order.status" @change="updateOrderStatus(order._id, $event.target.value)" class="status-select">
+                    <option value="pending">📦 Оформлен</option>
+                    <option value="confirmed">✅ Подтвержден</option>
+                    <option value="delivering">🚚 В доставке</option>
+                    <option value="completed">🎉 Завершен</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div v-else class="empty-state">
+            <p>Заказов нет</p>
+          </div>
+        </div>
         
-        <div v-if="showDeleteModal" class="modal-overlay" @click="closeDeleteModal">
+\        <div v-if="showDeleteModal" class="modal-overlay" @click="closeDeleteModal">
           <div class="modal-content" @click.stop>
             <h3>Подтверждение удаления</h3>
             <p>Вы уверены, что хотите удалить этот аккаунт?</p>
@@ -391,6 +530,8 @@ export default {
     return {
       activeTab: 'profile',
       user: null,
+      orders: [],
+      allOrders: [],
       loading: false,
       error: '',
       editing: false,
@@ -495,12 +636,47 @@ export default {
       const first = this.user.firstName ? this.user.firstName[0] : ''
       const last = this.user.lastName ? this.user.lastName[0] : ''
       return `${first}${last}`.toUpperCase()
-    }
+    },
+    normalizedRole() {
+    return this.user?.role?.trim().toLowerCase() || ''
+  }
   },
   methods: {
+
+      selectProductForEdit(product) {
+    this.selectedProduct = { ...product };
+    this.selectedProduct.characteristics = Object.entries(product.characteristics || {}).map(([key, value]) => ({ key, value }));
+    this.selectedProduct.newImages = [];
+    this.newImagePreviews = [];
+    this.imagesToDelete = [];
+  },
+  
+  cancelEdit() {
+    this.selectedProduct = null;
+    this.selectedProductId = '';
+    this.newImagePreviews = [];
+    this.imagesToDelete = [];
+  },
+  
+  getCategoryName(category) {
+    const categories = {
+      'smartphones': 'Смартфоны',
+      'laptops': 'Ноутбуки',
+      'tablets': 'Планшеты',
+      'accessories': 'Аксессуары',
+      'gadgets': 'Гаджеты'
+    };
+    return categories[category] || category;
+  },
     setTab(tab) {
       this.activeTab = tab
       this.error = ''
+      if (tab === 'orders-admin') {
+        this.fetchAllOrders();
+      }
+      if (tab === 'history') {
+        this.fetchOrders();
+      }
       if (tab === 'edit-product' || tab === 'delete-product') {
         this.loadProducts()
       }
@@ -508,7 +684,30 @@ export default {
         this.fetchUsers()
       }
     },
-    
+    shuffleArray(array) {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    },
+    async fetchOrders() {
+  this.loading = true;
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://localhost:5000/api/orders/history', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      this.orders = data.orders;
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки заказов:', error);
+  }
+  this.loading = false;
+},
     async fetchUser() {
       this.loading = true
       this.error = ''
@@ -552,6 +751,45 @@ export default {
         }
       }
     },
+
+    async fetchAllOrders() {
+  this.loading = true;
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://localhost:5000/api/orders/admin/all', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      this.allOrders = data.orders;
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки заказов:', error);
+  }
+  this.loading = false;
+},
+
+async updateOrderStatus(orderId, newStatus) {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ status: newStatus })
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.message || 'Ошибка обновления статуса');
+    }
+  } catch (error) {
+    alert('Ошибка соединения');
+  }
+},
+
     async updateProfile() {
       this.loading = true
       this.error = ''
@@ -737,7 +975,7 @@ formatPhoneInput(event) {
         })
         const data = await response.json()
         if (response.ok) {
-          this.products = data.products
+          this.products = this.shuffleArray(data.products)
         } else {
           this.error = data.message || 'Ошибка загрузки товаров'
         }
@@ -924,6 +1162,9 @@ formatPhoneInput(event) {
   },
   mounted() {
     this.fetchUser()
+    if (this.activeTab === 'history') {
+      this.fetchOrders();
+    }
     if (this.$route.query.tab) {
       this.activeTab = this.$route.query.tab; 
     }
@@ -1239,7 +1480,9 @@ formatPhoneInput(event) {
   color: #ffffff;
   font-size: 18px;
 }
-
+.characteristics-section input{
+  width: 95%;
+}
 .char-grid {
     display: grid;
     grid-template-columns: 1fr 1fr auto;
@@ -1368,20 +1611,25 @@ formatPhoneInput(event) {
 
 .products-grid,
 .users-grid {
-  display: grid;
-  gap: 20px;
+      min-height: 316px;
+    display: flex;
+    /* width: 20%; */
+    flex-wrap: wrap;
+    justify-content: flex-start;
 }
 
 .product-card,
 .user-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    margin: 5px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+    flex-direction: column;
 }
 
 .product-card:hover,
@@ -1391,9 +1639,11 @@ formatPhoneInput(event) {
 }
 
 .product-info {
-  display: flex;
-  align-items: center;
-  gap: 15px;
+      width: 100%;
+    display: flex
+;
+    /* gap: 15px; */
+    flex-direction: column;
 }
 
 .product-image {
@@ -1424,6 +1674,7 @@ formatPhoneInput(event) {
 }
 
 .empty-state {
+  width: 100%;
   text-align: center;
   padding: 60px 20px;
   color: #cccccc;
@@ -1580,6 +1831,463 @@ formatPhoneInput(event) {
   .modal-actions {
     flex-direction: column;
   }
+}
+
+.orders-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.order-card {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.order-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.admin-orders {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-order-card {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-order-card.pending {
+  border-left: 4px solid #cccccc;
+}
+
+.admin-order-card.confirmed {
+  border-left: 4px solid #2196f3;
+}
+
+.admin-order-card.delivering {
+  border-left: 4px solid #ff9800;
+}
+
+.admin-order-card.completed {
+  border-left: 4px solid #4caf50;
+}
+
+.order-user {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.order-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: right;
+  font-size: 14px;
+  color: #cccccc;
+}
+
+.order-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: white;
+  cursor: pointer;
+}
+
+.status-select option {
+  background: #2d2d2d;
+  color: white;
+}
+
+.order-number {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.order-date {
+  font-size: 14px;
+  color: #cccccc;
+}
+
+.order-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.order-status.pending {
+  background: rgba(255, 255, 255, 0.1);
+  color: #cccccc;
+}
+
+.order-status.confirmed {
+  background: rgba(33, 150, 243, 0.2);
+  color: #2196f3;
+}
+
+.order-status.delivering {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+}
+
+.order-status.completed {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.order-address {
+  margin-bottom: 15px;
+  color: #cccccc;
+  font-size: 14px;
+}
+
+.order-items {
+  margin-bottom: 15px;
+}
+
+.order-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.order-item:last-child {
+  border-bottom: none;
+}
+
+.item-name {
+  flex: 1;
+  color: #ffffff;
+}
+
+.item-quantity {
+  color: #cccccc;
+  margin: 0 15px;
+}
+
+.item-price {
+  color: #ff6f00;
+  font-weight: 600;
+}
+
+.order-total {
+  text-align: right;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+
+
+  .catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 25px;
+  margin-bottom: 30px;
+}
+
+.product-card {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.product-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 111, 0, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.product-card::before {
+  content: 'Нажмите для редактирования';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #ff6f00, #ff8f00);
+  color: white;
+  font-size: 11px;
+  padding: 5px;
+  text-align: center;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover::before {
+  transform: translateY(0);
+}
+
+.product-image {
+  width: 100%;
+  height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.no-image {
+  color: #cccccc;
+  font-size: 14px;
+}
+
+.product-info {
+  color: #ffffff;
+}
+
+.product-name {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  color: #ffffff;
+  line-height: 1.3;
+}
+
+.product-description {
+  font-size: 14px;
+  color: #cccccc;
+  margin: 0 0 15px 0;
+  line-height: 1.4;
+  opacity: 0.8;
+}
+
+.product-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.product-price {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff6f00;
+}
+
+.product-category {
+  font-size: 12px;
+  color: #cccccc;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.product-stock {
+  font-size: 13px;
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.edit-form-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  backdrop-filter: blur(5px);
+}
+
+.edit-form-container {
+  background: #2d2d2d;
+  border-radius: 20px;
+  padding: 30px;
+  max-width: 60%;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.edit-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.edit-form-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 700;
+}
+.product-card-del{
+    min-height: 316px;
+    display: flex;
+    width: 19%;
+    margin: 5px;
+    flex-direction: column;
+    justify-content: space-around;
+  
+}
+
+.close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 111, 0, 0.3);
+  transform: rotate(90deg);
+}
+
+.edit-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.cancel-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 15px 30px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 16px;
+  flex: 1;
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #ff6f00, #ff8f00);
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 16px;
+  flex: 2;
+}
+
+.save-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 111, 0, 0.4);
+}
+
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 768px) {
+  .catalog-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+  }
+  
+  .edit-form-container {
+    padding: 20px;
+    margin: 10px;
+  }
+  
+  .edit-form-header {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  .edit-actions {
+    flex-direction: column;
+  }
+}
+
+.edit-title{
+  width: 95%;
+}
+.edit-price{
+  width: 95%;
+}
+.edit-quantity{
+  width: 95%;
+}
+
+.edut-disc textarea{
+  width: 97.5%;
 }
 </style>
 

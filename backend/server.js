@@ -5,6 +5,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
 const cartRouter = require('./routes/cart');
+const orderRoutes = require('./routes/orders');
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRouter);
+app.use('/api/orders', orderRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

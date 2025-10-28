@@ -14,7 +14,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-router.get('/list', authMiddleware, async (req, res) => {
+router.get('/list', async (req, res) => {
   try {
     const products = await Product.find();
     res.status(200).json({ products });
@@ -24,8 +24,26 @@ router.get('/list', authMiddleware, async (req, res) => {
   }
 });
 
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: 'Товар не найден' });
+    }
+    res.status(200).json({ product });
+  } catch (error) {
+    console.error('Error in /:id:', error);
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message });
+  }
+});
+
+
 router.post('/add', authMiddleware, upload.array('images', 10), async (req, res) => {
   try {
+    if (!['admin', 'supply_manager'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Доступ запрещен: только администратор или менеджер по поставкам' });
+    }
+
     console.log('Received data:', req.body);
     console.log('Received files:', req.files);
     console.log('Received characteristics:', req.body.characteristics);
@@ -76,21 +94,12 @@ router.post('/add', authMiddleware, upload.array('images', 10), async (req, res)
   }
 });
 
-router.get('/:id', authMiddleware, async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Товар не найден' });
-    }
-    res.status(200).json({ product });
-  } catch (error) {
-    console.error('Error in /:id:', error);
-    res.status(500).json({ message: 'Ошибка сервера', error: error.message });
-  }
-});
-
 router.put('/update/:id', authMiddleware, upload.array('images', 10), async (req, res) => {
   try {
+    if (!['admin', 'supply_manager'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Доступ запрещен: только администратор или менеджер по поставкам' });
+    }
+
     const { name, description, price, stock, category, characteristics, mode = 'add' } = req.body;
 
     if (!name || !description || price === undefined || stock === undefined || !category) {
@@ -138,6 +147,10 @@ router.put('/update/:id', authMiddleware, upload.array('images', 10), async (req
 
 router.delete('/:id/image/:index', authMiddleware, async (req, res) => {
   try {
+    if (!['admin', 'supply_manager'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Доступ запрещен: только администратор или менеджер по поставкам' });
+    }
+
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'Товар не найден' });
 
@@ -158,11 +171,14 @@ router.delete('/:id/image/:index', authMiddleware, async (req, res) => {
 
 router.delete('/delete/:id', authMiddleware, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Доступ запрещен: только администратор может удалять товары' });
+    }
+
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) {
       return res.status(404).json({ message: 'Товар не найден' });
     }
-    // Удаляем продукт из всех корзин
     await Cart.updateMany(
       { 'items.product': req.params.id },
       { $pull: { items: { product: req.params.id } } }

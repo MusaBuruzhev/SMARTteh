@@ -12,7 +12,6 @@ const productSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Генерация уникального артикула перед сохранением
 productSchema.pre('save', async function(next) {
   console.log('Running pre-save hook for articleNumber');
   if (!this.articleNumber) {
@@ -31,7 +30,6 @@ productSchema.pre('save', async function(next) {
   next();
 });
 
-// Дополнительная проверка при обновлении
 productSchema.pre('findOneAndUpdate', async function(next) {
   console.log('Running pre-findOneAndUpdate hook for articleNumber');
   if (!this._update.articleNumber) {
