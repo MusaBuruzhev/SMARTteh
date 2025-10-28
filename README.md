@@ -60,21 +60,33 @@
 
 ```bash
 # Клонирование репозитория
+
+```bash
 git clone https://github.com/your-username/smarttech.git
+```
+```bash
 cd smarttech
+```
 
 # Бэкенд
+```bash
 cd backend
+```
+```bash
 npm install
+```
+```bash
 npm run dev
+```
 
 # Фронтенд (в новом терминале)
+```bash
 cd ../frontend
+```
+```bash
 npm install
-npm run dev
-# Фронтенд (в новом терминале)
-cd ../frontend
-npm install
+```
+```bash
 npm run dev
 ```
 ## 🎨 Особенности реализации
