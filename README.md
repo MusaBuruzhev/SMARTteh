@@ -61,7 +61,7 @@
 # Клонирование репозитория
 
 ```bash
-git clone https://github.com/your-username/smarttech.git
+git clone https://github.com/MusaBuruzhev/SMARTteh.git
 ```
 ```bash
 cd SMARTteh
