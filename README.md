@@ -76,7 +76,7 @@ npm run dev
 cd ../frontend
 npm install
 npm run dev
-```bash
+```
 ## 🎨 Особенности реализации
 
 ### Дизайн
